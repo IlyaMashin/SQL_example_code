@@ -1,0 +1,50 @@
+Теперь на основе данных о выручке рассчитаем несколько относительных показателей, которые покажут, сколько в среднем потребители готовы платить за услуги нашего сервиса доставки. Остановимся на следующих метриках:
+1. ARPU (Average Revenue Per User) — средняя выручка на одного пользователя за определённый период.
+2. ARPPU (Average Revenue Per Paying User) — средняя выручка на одного платящего пользователя за определённый период.
+3. AOV (Average Order Value) — средний чек, или отношение выручки за определённый период к общему количеству заказов за это же время.
+
+Если за рассматриваемый период сервис заработал 100 000 рублей и при этом им пользовались 500 уникальных пользователей, из которых 400 сделали в общей сложности 650 заказов, тогда метрики будут иметь следующие значения:
+ARPU =100000/500=200
+ARPPU =100000/400=250
+AOV=100000/650≈153,85
+
+Задание:
+Для каждого дня в таблицах orders и user_actions рассчитайте следующие показатели:
+Выручку на пользователя (ARPU) за текущий день.
+Выручку на платящего пользователя (ARPPU) за текущий день.
+Выручку с заказа, или средний чек (AOV) за текущий день.
+Колонки с показателями назовите соответственно arpu, arppu, aov. Колонку с датами назовите date. 
+
+При расчёте всех показателей округляйте значения до двух знаков после запятой.
+Результат должен быть отсортирован по возрастанию даты. 
+
+Поля в результирующей таблице: date, arpu, arppu, aov
+
+SELECT t1.time::date as date,
+       round((sum(price) / t2.unique_users::decimal), 2) as arpu,
+       round((sum(price) / t3.pay_users::decimal), 2) as arppu,
+       round((sum(price) / t3.count_orders::decimal), 2) as aov
+FROM   (SELECT creation_time as time,
+               order_id,
+               unnest(product_ids) as product_id
+        FROM   orders) as t1
+    LEFT JOIN products using(product_id)
+    LEFT JOIN (SELECT time::date as time,
+                      count(distinct(user_id)) as unique_users
+               FROM   user_actions
+               GROUP BY time::date) as t2
+        ON t1.time::date = t2.time::date
+    LEFT JOIN (SELECT time::date as time,
+                      count(distinct(user_id)) as pay_users,
+                      count(order_id) as count_orders
+               FROM   user_actions
+               WHERE  order_id not in (SELECT order_id
+                                       FROM   user_actions
+                                       WHERE  action = 'cancel_order')
+               GROUP BY time::date) as t3
+        ON t1.time::date = t3.time::date
+WHERE  order_id not in (SELECT order_id
+                        FROM   user_actions
+                        WHERE  action = 'cancel_order')
+GROUP BY t1.time::date, t2.unique_users, t3.pay_users, t3.count_orders
+ORDER BY t1.time::date
